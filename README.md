@@ -6,6 +6,7 @@ Reference firmware for the Rune brushless blaster control board. Currently under
 - [ ] Make a better attempt to get everything set up before saying boot was successful (and add a safety flag so that most code doesn't run until after boot is complete)
 - [ ] FPS select on boot (or more broadly, write some code to allow for easy interaction with the flash)
 - [ ] Refactor main.cpp to make it easier to understand
+- [ ] Provisions for a solenoid pusher (brushed pusher with cycle switch only atm)
 - [ ] More detail in the readme
 - [ ] Decided what license fits best
 - [ ] Figure out what else needs to be added
