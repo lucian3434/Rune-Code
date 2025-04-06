@@ -1,0 +1,38 @@
+.program dshot
+.side_set 1
+
+.define BIT_PERIOD 8 ; 8 cycles per bit
+.define public THMIN 3 ; minimum cycles high per bit
+.define public TDATA 3 ; difference in cycles between 1 and 0 bit
+.define public TLMIN 2 ; remaining low time before next bit
+
+; set pindirs, 1 ; set pin as output
+
+bitloop:
+    out x, 1       side 0 [TLMIN - 1] ; pull a bit into scratch register & set pin low
+    jmp !x do_zero side 1 [THMIN - 1] ; if 0, jump to 0 code & set pin high
+do_one:
+    jmp bitloop    side 1 [TDATA - 1] ; set pin high then jump back to start
+do_zero:
+    jmp bitloop    side 0 [TDATA - 1] ; set pin low then jump back to start
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void dshot_program_init(PIO pio, uint sm, uint offset, uint8_t pin, float bitRate) {
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+    pio_sm_config c = dshot_program_get_default_config(offset);
+    sm_config_set_sideset_pins(&c, pin);
+    sm_config_set_out_shift(&c, false, true, 16);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    uint8_t cycles_per_bit = dshot_THMIN + dshot_TDATA + dshot_TLMIN;
+    float div = clock_get_hz(clk_sys) / (bitRate * cycles_per_bit);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

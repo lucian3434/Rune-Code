@@ -1,0 +1,66 @@
+.program bidshot
+
+.define TX_BIT_PERIOD 40 ; 40 cycles per transmitted bit
+.define public THMIN 15  ; minimum cycles high per bit
+.define public TDATA 15  ; difference in cycles between 1 and 0 bit
+.define public TLMIN 10  ; remaining low time before next bit
+
+.define RX_BIT_PERIOD 32 ; 4/5 TX_BIT_PERIOD
+.define RX_DELAY 15      ; how long to wait before measuring the first bit
+.define RX_LENGTH 20     ; how many response bits to read
+
+start:
+    jmp !osre txbits           ; if tx data present, go send it
+    jmp pin start              ; otherwise go back to the start if pin is still high
+                               ; if the pin is low, it will continue to rxbits
+rxbits:
+    set y, RX_LENGTH [RX_DELAY - 1] ; set up loop while waiting for data
+readbit:
+    in pins, 1  [RX_BIT_PERIOD - 2] ; read one bit at a time
+    jmp y-- readbit                 ; loop 21 times
+    push noblock                    ; push ISR to RX FIFO
+    jmp start                       ; jump back to start once finished
+
+txbits:
+    set pindirs, 1                ; set pins to output
+bitloop:
+    set pins, 1                   ; start pin high (this or next set might not be needed? double check this)
+    out x, 1        [TLMIN - 2]   ; pull a bit into scratch register & set pin low
+    set pins, 0                   ; set pin low
+    jmp !x do_zero  [THMIN - 2]   ; if 0, jump to 0 code & set pin high
+do_one:
+    set pins, 0                     ; set pin low to signal 1
+    jmp !osre bitloop   [TDATA - 2] ; set pin high then either transmit next bit, or
+    set pins, 1                     ; bring pin high again
+    set pindirs, 0                  ; set pin to input
+    jmp start                       ; and go to start if none are left
+do_zero:
+    set pins, 1                     ; set pin high to signal 0
+    jmp !osre bitloop   [TDATA - 2] ; set pin low then either transmit next bit, or
+    set pindirs, 0                  ; set pin to input
+    jmp start                       ; and go to start if none are left
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void bidshot_program_init(PIO pio, uint sm, uint offset, uint8_t pin, float bitRate) {
+    pio_gpio_init(pio, pin);
+    gpio_pull_up(pin); // keep pin high while listening for input
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+    pio_sm_config c = bidshot_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, pin, 1);
+    sm_config_set_jmp_pin(&c, pin);
+    sm_config_set_in_pins(&c, pin);
+    sm_config_set_out_pins(&c, pin, 1);
+    sm_config_set_out_shift(&c, false, true, 16);
+    sm_config_set_in_shift(&c, false, false, 32);
+
+    uint8_t cycles_per_bit = bidshot_THMIN + bidshot_TDATA + bidshot_TLMIN;
+    float div = clock_get_hz(clk_sys) / (bitRate * cycles_per_bit);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
