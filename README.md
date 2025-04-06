@@ -3,6 +3,8 @@ Reference firmware for the Rune brushless blaster control board. Currently under
 
 ## TODO
 - [ ] Noise rejection in the PID loop so that a D term is actually helpful (or otherwise I re-evaluate my PID tuning ability)
+- [ ] \(BIDSHOT code) Support for extended telemetry packets
+- [ ] Better error checking when using telemetry data
 - [ ] Make a better attempt to get everything set up before saying boot was successful (and add a safety flag so that most code doesn't run until after boot is complete)
 - [ ] FPS select on boot (or more broadly, write some code to allow for easy interaction with the flash)
 - [ ] Refactor main.cpp to make it easier to understand
