@@ -28,8 +28,8 @@ DRV::DRV824xS drv = DRV::DRV824xS(DRV_EN, DRV_PH, DRV_NSLEEP, DRV_MOSI, DRV_MISO
 // instantiate esc objects
 #define NUM_MOTORS 2
 Motor::BIDSHOTMotor motors[NUM_MOTORS] {
-  Motor::BIDSHOTMotor(ESC_M1, pio0, Motor::DSHOT600, 14),
-  Motor::BIDSHOTMotor(ESC_M2, pio0, Motor::DSHOT600, 14)
+  Motor::BIDSHOTMotor(ESC_M3, pio0, Motor::DSHOT600, 14),
+  Motor::BIDSHOTMotor(ESC_M4, pio0, Motor::DSHOT600, 14)
 };
 
 // various switches on the blaster
@@ -37,19 +37,27 @@ Debounce::Button cycle = Debounce::Button(IO1, true, true);
 Debounce::Button trig = Debounce::Button(IO2, true, true);
 Debounce::Button sel1 = Debounce::Button(IO6, true, true);
 Debounce::Button sel2 = Debounce::Button(IO5, true, true);
+Debounce::Button rev = Debounce::Button(IO3, true, true);
 
 // defining fire modes
 struct firemode_t {
   uint32_t targetRPM[NUM_MOTORS];
   uint8_t numShots; // there is no way you need more than like 200
+  uint8_t burstMode; //what happens when trigger is released
 };
 
-#define SET_RPM 120 * 185 // convenience bc for now i only want one fps setting
-struct firemode_t firemode_one = { {SET_RPM, SET_RPM}, 1 };
-struct firemode_t firemode_two = { {SET_RPM, SET_RPM}, 3 };
-struct firemode_t firemode_three = { {SET_RPM, SET_RPM}, 100 }; 
-struct firemode_t* firemode_curr = &firemode_one; // pointer to current fire mode
+// stuctured as boot/firing mode 1, 2,3
+uint32_t VariableFPS[3] = {14000, 24000, 45000};
+uint8_t burstSize[3] = {1,3,100}; //maximum amount of darts fired per trigger pull
+uint8_t burstMode[3] = {1, 1, 0}; //0 for trigger release ends burst, 1 for finish burst amount
+
+uint32_t SET_RPM; // convenience bc for now i only want one fps setting
 uint8_t shotsFired = 0; // so we know how far into a burst we are
+
+struct firemode_t firemode_one = { {SET_RPM, SET_RPM}, 1, 1};
+struct firemode_t firemode_two = { {SET_RPM, SET_RPM}, 3, 1};
+struct firemode_t firemode_three = { {SET_RPM, SET_RPM}, 100, 0}; 
+struct firemode_t* firemode_curr = &firemode_one; // pointer to current fire mode
 
 // blaster state variables
 wheelState_t wheelState; // this gets set in the init function so that the timestamp is in sync
@@ -102,9 +110,33 @@ void init() {
   gpio_init(ESC_ENABLE);
   gpio_set_dir(ESC_ENABLE, GPIO_OUT);
   gpio_put(ESC_ENABLE, true);
+  
+  for (uint8_t i = 0; i <NUM_MOTORS; i++){
+    motors[i].setThrottle(0.0);
+  }
 
   // set initial value for wheel state
   updateWheelState(IDLE);
+
+   // update fire mode from selector
+   sel1.update();
+   sel2.update();
+
+   if (sel1.isPressed()) { // forward position
+    SET_RPM = VariableFPS[0];
+  }
+  else if (sel2.isPressed()) { // backward position
+    SET_RPM = VariableFPS[2];
+  }
+  else { // middle position
+    SET_RPM = VariableFPS[1];
+  }
+
+  firemode_one = { {SET_RPM, SET_RPM}, burstSize[0], burstMode[0]};
+  firemode_two = { {SET_RPM, SET_RPM}, burstSize[1], burstMode[1]};
+  firemode_three = { {SET_RPM, SET_RPM}, burstSize[2], burstMode[2]};
+
+
 }
 
 int main() {
@@ -263,7 +295,7 @@ bool systemControlLoop(repeating_timer_t *rt) {
     }
 
     // start firing
-    if (firemode_curr->numShots > 0 && wheelState != ACCELERATING) {
+    if ((firemode_curr->numShots > 0 && wheelState != ACCELERATING)) {
       updateWheelState(ACCELERATING);
       shotsFired = 0;
     }
@@ -280,7 +312,7 @@ bool systemControlLoop(repeating_timer_t *rt) {
     if (cycle.isRisingEdge()) {
       uprintf("INFO: Cycle switch pressed\r\n");
       shotsFired++;
-      if ((shotsFired >= firemode_curr->numShots) || !trig.isPressed()) {
+      if ((shotsFired >= firemode_curr->numShots) || ((!trig.isPressed()) && (firemode_curr->burstMode == 0))) {
         // stop the pusher if we've finished the burst or let go of the trigger
         pusherState = STOPPED;
         updateWheelState(SLOWING); // and tell the wheels to slow down too

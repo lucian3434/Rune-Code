@@ -17,7 +17,7 @@ Debounce::Button::Button(uint8_t gpioPin, bool invert, bool pullup) {
     hasPullup = pullup;
 }
 
-uint64_t Debounce::Button::timeout = 10 * 1000; // 10ms debounce
+uint64_t Debounce::Button::timeout = 25 * 1000; // 10ms debounce
 
 void Debounce::Button::init() {
     gpio_init(pin);
