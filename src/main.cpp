@@ -28,6 +28,8 @@ DRV::DRV824xS drv = DRV::DRV824xS(DRV_EN, DRV_PH, DRV_NSLEEP, DRV_MOSI, DRV_MISO
 // instantiate esc objects
 #define NUM_MOTORS 2
 Motor::BIDSHOTMotor motors[NUM_MOTORS] {
+  Motor::BIDSHOTMotor(ESC_M3, pio0, Motor::DSHOT600, 14),
+  Motor::BIDSHOTMotor(ESC_M4, pio0, Motor::DSHOT600, 14)
 };
 
 // various switches on the blaster
