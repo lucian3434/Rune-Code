@@ -62,7 +62,7 @@ void Motor::BIDSHOTMotor::setThrottle(float throttle) {
     if (throttle < 0.0) throttle = 0.0;
     else if (throttle > 1.0) throttle = 1.0; // clamp between 0 and 1
     uint16_t dshotCommand = (uint16_t)(throttle * 1999) + 48; // range 48-2047
-    if (throttle == 0.0){dshotCommand = 0;}
+    if (throttle == 0.0) dshotCommand = 0; // ensure AM32 ESCs arm correctly. this also works for BLheli32 ESCs
     uint16_t dshotFrame = (dshotCommand << 1) | requestTelem; // throttle and telem request
     uint16_t crc = (~(dshotFrame ^ (dshotFrame >> 4) ^ (dshotFrame >> 8))) & 0x0F; // calculate crc (https://brushlesswhoop.com/dshot-and-bidirectional-dshot/#calculating-the-crc)
     dshotFrame = (dshotFrame << 4) | crc; // shift over data and put in crc to complete the frame

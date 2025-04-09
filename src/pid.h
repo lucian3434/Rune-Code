@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-const uint8_t rpmCacheLength = 4;
+const uint8_t rpmCacheLength = 8;
 
 struct PID {
     float P;
@@ -9,6 +9,7 @@ struct PID {
     float D;
     uint32_t lastRPM[rpmCacheLength];
     uint8_t rpmIndex;
+    uint32_t lastAvg;
     float Isum;
     float currThrottle;
 };

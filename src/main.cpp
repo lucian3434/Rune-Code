@@ -10,6 +10,8 @@
 #include "drv/drv824xs.h"
 #include "led/ws2812.h"
 
+#define USE_RPM_LOGGING
+
 void init();
 void uprintf(const char* format, ...);
 bool systemControlLoop(repeating_timer_t *rt);
@@ -28,8 +30,8 @@ DRV::DRV824xS drv = DRV::DRV824xS(DRV_EN, DRV_PH, DRV_NSLEEP, DRV_MOSI, DRV_MISO
 // instantiate esc objects
 #define NUM_MOTORS 2
 Motor::BIDSHOTMotor motors[NUM_MOTORS] {
-  Motor::BIDSHOTMotor(ESC_M3, pio0, Motor::DSHOT600, 14),
-  Motor::BIDSHOTMotor(ESC_M4, pio0, Motor::DSHOT600, 14)
+  Motor::BIDSHOTMotor(ESC_M1, pio0, Motor::DSHOT600, 14),
+  Motor::BIDSHOTMotor(ESC_M2, pio0, Motor::DSHOT600, 14)
 };
 
 // various switches on the blaster
@@ -67,18 +69,26 @@ absolute_time_t lastWheelStateUpdate;
 // helper variables for PID control
 // these pid values work for the most part. not the greatest, but better than nothing lol
 PID mPID[NUM_MOTORS] {};
-float pid_p = 0.00015;
-float pid_i = 0.000001 / 4;
-float pid_d = 0.0;
+float pid_p = 0.00025;
+float pid_i = 0.0000001;
+float pid_d = -0.001;
 float throttlePoint[NUM_MOTORS]; // where requested throttle gets stored
 float steadyThrottle[NUM_MOTORS]; // last known good throttle, used for ramp down
 uint32_t rampDownTime = 500 * 1000; // motor ramp down time in us
-int32_t pidFrequency = 2000; // update frequency in hz
+int32_t pidFrequency = 4000; // update frequency in hz
 int32_t loopTimeus = 1e6 / pidFrequency; // motor control loop time in us
 
 // loop variables for main logic loop
 int32_t mainLoopFrequency = 1000; // main logic loop update frequency in hz
 int32_t mainLoopTimeus = 1e6 / mainLoopFrequency; // main logic loop time in us
+
+// rpm logging
+#ifdef USE_RPM_LOGGING
+const uint32_t rpmLogLength = 2000;
+uint32_t rpmCache[rpmLogLength][NUM_MOTORS] = {0};
+uint16_t throttleCache[rpmLogLength][NUM_MOTORS] = {0}; // float gets converted to an integer [0, 1999]
+uint16_t cacheIndex = rpmLogLength + 1;
+#endif
 
 
 void init() {
@@ -186,6 +196,17 @@ int main() {
   // keep execution going
   while (true) {
     tight_loop_contents();
+    #ifdef USE_RPM_LOGGING
+    // dump cache once full
+    if (cacheIndex == rpmLogLength) {
+      uprintf("Motor 1 RPM, Motor 2 RPM, Motor 1 Throttle, Motor 2 Throttle, Setpoint\r\n");
+      for (uint16_t i = 0; i < rpmLogLength; i++) {
+        uprintf("%u, %u, %u, %u, %u\r\n", rpmCache[i][0], rpmCache[i][1], throttleCache[i][0], throttleCache[i][1], SET_RPM);
+      }
+      cacheIndex++; // increment index again so we don't print this more than once
+    }
+    sleep_ms(10);
+    #endif
   }
 }
 
@@ -193,9 +214,11 @@ int main() {
 bool motorControlLoop(repeating_timer_t *rt) {
   uint8_t atTarget = 0; // track if each motor is up to speed, and assume they arent
   for (uint8_t i = 0; i < NUM_MOTORS; i++) {
+    // get rpm from motor
+    uint32_t rpm = motors[i].readTelemetry();
+
     if (wheelState == SLOWING) {
       // keep updating pid in case we need to start accelerating again
-      uint32_t rpm = motors[i].readTelemetry();
       int32_t rpmOffset = (int32_t)((firemode_curr->targetRPM[i] / (float)rampDownTime) * absolute_time_diff_us(lastWheelStateUpdate, get_absolute_time()));
       uint32_t targetRPM;
       if (rpmOffset > firemode_curr->targetRPM[i]) {
@@ -207,7 +230,6 @@ bool motorControlLoop(repeating_timer_t *rt) {
       throttlePoint[i] = updatePID(&mPID[i], targetRPM, rpm);
     }
     else if (wheelState == ACCELERATING) {
-      uint32_t rpm = motors[i].readTelemetry();
       throttlePoint[i] = updatePID(&mPID[i], firemode_curr->targetRPM[i], rpm);
       if (rpm > firemode_curr->targetRPM[i] - 500) {
         atTarget |= 1 << i;
@@ -215,16 +237,29 @@ bool motorControlLoop(repeating_timer_t *rt) {
     }
     else if (wheelState == STEADY) {
       // same as accelerating, just dont need to update atTarget
-      uint32_t rpm = motors[i].readTelemetry();
       throttlePoint[i] = updatePID(&mPID[i], firemode_curr->targetRPM[i], rpm);
     }
     else { // wheelState == IDLE 
       throttlePoint[i] = 0.0;
     }
+
+    // if we have rpm logging enabled, add the most recent value to the cache
+    #ifdef USE_RPM_LOGGING
+    if (cacheIndex < rpmLogLength) {
+      rpmCache[cacheIndex][i] = rpm;
+      if (throttlePoint[i] > 1.0) throttlePoint[i] = 1.0; // normally this gets dealt with in the motor library, but i want to show it capped when logged
+      throttleCache[cacheIndex][i] = (uint16_t)(throttlePoint[i] * 1999);
+    }
+    #endif
     
     // now that we've calculated the throttles, send them to the motors
     motors[i].setThrottle(throttlePoint[i]);
   }
+
+  #ifdef USE_RPM_LOGGING
+  // increment cache index if we still need to take data
+  if (cacheIndex < rpmLogLength) cacheIndex++;
+  #endif
   
   // now for more general checks
   if (wheelState == ACCELERATING) {
@@ -289,6 +324,10 @@ bool systemControlLoop(repeating_timer_t *rt) {
   if (trig.isRisingEdge()) {
     uprintf("INFO: Trigger pressed\r\n");
 
+    #ifdef USE_RPM_LOGGING
+    cacheIndex = 0; // reset cache index to start logging
+    #endif
+
     // cancel the pusher safety timer now that we've pressed the trigger
     if (psTimeout == WAITING) {
       cancel_repeating_timer(&pusherSafetyCallbackTimer);
@@ -310,7 +349,9 @@ bool systemControlLoop(repeating_timer_t *rt) {
   // if the pusher is running, check to see if it hit the cycle switch before continuing
   if (pusherState == RUNNING) {
     if (cycle.isRisingEdge()) {
+      #ifndef USE_RPM_LOGGING
       uprintf("INFO: Cycle switch pressed\r\n");
+      #endif
       shotsFired++;
       if ((shotsFired >= firemode_curr->numShots) || ((!trig.isPressed()) && (firemode_curr->burstMode == 0))) {
         // stop the pusher if we've finished the burst or let go of the trigger
@@ -327,7 +368,7 @@ bool systemControlLoop(repeating_timer_t *rt) {
     drv.brake();
   }
 
-  return true;
+  return true; // repeat timer
 }
 
 // check to make sure the pusher isnt stuck on for too long after the trigger is released (dead switch/cannot travel/etc)
