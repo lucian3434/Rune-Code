@@ -10,7 +10,7 @@
 #include "drv/drv824xs.h"
 #include "led/ws2812.h"
 
-#define USE_RPM_LOGGING
+//#define USE_RPM_LOGGING
 
 void init();
 void uprintf(const char* format, ...);

@@ -2,6 +2,7 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/binary_info.h"
+#include "hardware/pwm.h"
 #include <stdio.h>
 
 // TI format doesn't seem to work?
@@ -30,9 +31,20 @@ void DRV::DRV824xS::init() {
     gpio_set_dir(ph, GPIO_OUT);
     gpio_put(ph, false);
 
+    #ifndef DRV824XS_USING_PWM
     gpio_init(en);
     gpio_set_dir(en, GPIO_OUT);
     gpio_put(en, false);
+    #endif
+
+    #ifdef DRV824XS_USING_PWM
+    gpio_set_function(en, GPIO_FUNC_PWM);
+    pwmSlice = pwm_gpio_to_slice_num(en);
+    pwm_set_wrap(pwmSlice, 1000); // timer resets at 1000
+    pwm_set_clkdiv(pwmSlice, 6.0); // operate at ~20khz
+    pwm_set_gpio_level(en, 0);
+    pwm_set_enabled(pwmSlice, true);
+    #endif
 
     // initiate spi at 500khz
     spi_init(spiInstance, 5e5);
@@ -102,20 +114,49 @@ void DRV::DRV824xS::sleep() {
 }
 
 void DRV::DRV824xS::drive() {
+    #ifndef DRV824XS_USING_PWM
     //change order to change direction
     gpio_put(ph, false);
     gpio_put(en, true);
+    #endif
+
+    #ifdef DRV824XS_USING_PWM
+    drive(1.0);
+    #endif
 }
 
+#ifdef DRV824XS_USING_PWM
+void DRV::DRV824xS::drive(float dutyCycle) {
+    gpio_put(ph, false);
+    if (dutyCycle < 0.0) dutyCycle = 0.0;
+    else if (dutyCycle > 1.0) dutyCycle = 1.0;
+    pwm_set_gpio_level(en, (uint16_t)(dutyCycle * 1000));
+}
+#endif
+
 void DRV::DRV824xS::brake() {
+    #ifndef DRV824XS_USING_PWM
     gpio_put(ph, false);
     gpio_put(en, false); 
+    #endif
+
+    #ifdef DRV824XS_USING_PWM
+    gpio_put(ph, false);
+    pwm_set_gpio_level(en, 0);
+    #endif
 }
 
 void DRV::DRV824xS::coast() {
+    #ifndef DRV824XS_USING_PWM
     //chip coasts high
     gpio_put(ph, true);
     gpio_put(en, true);
+    #endif
+
+    #ifdef DRV824XS_USING_PWM
+    gpio_put(ph, true);
+    pwm_set_gpio_level(en, 1000);
+    #endif
 }
 
 // "dumb" write where we block until the data is sent

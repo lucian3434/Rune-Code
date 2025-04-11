@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "hardware/spi.h"
 
+#define DRV824XS_USING_PWM
+
 namespace DRV {
     // used to drive an SPI (S) variant of the DRV8243, DRV8244, or DRV8245
     // some pins are omitted as implemented on Rune
@@ -19,6 +21,9 @@ namespace DRV {
             uint8_t nscs;
             uint8_t sclk;
             spi_inst_t* spiInstance = nullptr;
+            #ifdef DRV824XS_USING_PWM
+            uint pwmSlice;
+            #endif
             int writeWord(uint8_t address, uint8_t data);
             uint16_t readWord(uint8_t address);
             inline spi_hw_t* get_spi_hw();
@@ -29,6 +34,9 @@ namespace DRV {
             bool wake();
             void sleep();
             void drive();
+            #ifdef DRV824XS_USING_PWM
+            void drive(float dutyCycle);
+            #endif
             void brake();
             void coast();
     };
