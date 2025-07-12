@@ -49,9 +49,9 @@ struct firemode_t {
 };
 
 // stuctured as boot/firing mode 1, 2,3
-uint32_t VariableFPS[3] = {14000, 24000, 45000};
+uint32_t VariableFPS[3] = {19500, 24000, 45000};
 uint8_t burstSize[3] = {1,3,100}; //maximum amount of darts fired per trigger pull
-uint8_t burstMode[3] = {1, 1, 0}; //0 for trigger release ends burst, 1 for finish burst amount
+uint8_t burstMode[3] = {0, 0, 0}; //0 for trigger release ends burst, 1 for finish burst amount
 
 uint32_t SET_RPM; // convenience bc for now i only want one fps setting
 uint8_t shotsFired = 0; // so we know how far into a burst we are
@@ -331,6 +331,7 @@ bool systemControlLoop(repeating_timer_t *rt) {
     // cancel the pusher safety timer now that we've pressed the trigger
     if (psTimeout == WAITING) {
       cancel_repeating_timer(&pusherSafetyCallbackTimer);
+      psTimeout = NONE;
     }
 
     // start firing
