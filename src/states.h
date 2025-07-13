@@ -13,6 +13,7 @@ enum pusherState_t {
     STOPPED
 };
 
+// state of the scotch yoke pusher safety timeout
 enum pusherSafetyTimeout_t {
     WAITING,
     NONE

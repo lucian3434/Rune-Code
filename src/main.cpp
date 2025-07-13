@@ -2,18 +2,15 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "board_def.h"
+#include "config.h"
+#include "util.h"
+
 #include "pid.h"
 #include "states.h"
-#include "debounce/button.h"
-#include "motor/bidshot_motor.h"
-#include "drv/drv824xs.h"
-#include "led/ws2812.h"
 
-//#define USE_RPM_LOGGING
+
 
 void init();
-void uprintf(const char* format, ...);
 bool systemControlLoop(repeating_timer_t *rt);
 bool motorControlLoop(repeating_timer_t *rt);
 void updateWheelState(wheelState_t newState);
@@ -22,44 +19,7 @@ bool pusherSafetyCallback(repeating_timer_t *rt);
 repeating_timer_t pusherSafetyCallbackTimer;
 pusherSafetyTimeout_t psTimeout = NONE;
 
-LED::WS2812 led = LED::WS2812(LED_DATA, pio1);
-
-// create DRV8243 (pusher driver) object
-DRV::DRV824xS drv = DRV::DRV824xS(DRV_EN, DRV_PH, DRV_NSLEEP, DRV_MOSI, DRV_MISO, DRV_NSCS, DRV_SCLK, spi0);
-
-// instantiate esc objects
-#define NUM_MOTORS 2
-Motor::BIDSHOTMotor motors[NUM_MOTORS] {
-  Motor::BIDSHOTMotor(ESC_M1, pio0, Motor::DSHOT600, 14),
-  Motor::BIDSHOTMotor(ESC_M2, pio0, Motor::DSHOT600, 14)
-};
-
-// various switches on the blaster
-Debounce::Button cycle = Debounce::Button(IO1, true, true);
-Debounce::Button trig = Debounce::Button(IO2, true, true);
-Debounce::Button sel1 = Debounce::Button(IO6, true, true);
-Debounce::Button sel2 = Debounce::Button(IO5, true, true);
-Debounce::Button rev = Debounce::Button(IO3, true, true);
-
-// defining fire modes
-struct firemode_t {
-  uint32_t targetRPM[NUM_MOTORS];
-  uint8_t numShots; // there is no way you need more than like 200
-  uint8_t burstMode; //what happens when trigger is released
-};
-
-// stuctured as boot/firing mode 1, 2,3
-uint32_t VariableFPS[3] = {19500, 24000, 45000};
-uint8_t burstSize[3] = {1,3,100}; //maximum amount of darts fired per trigger pull
-uint8_t burstMode[3] = {0, 0, 0}; //0 for trigger release ends burst, 1 for finish burst amount
-
-uint32_t SET_RPM; // convenience bc for now i only want one fps setting
-uint8_t shotsFired = 0; // so we know how far into a burst we are
-
-struct firemode_t firemode_one = { {SET_RPM, SET_RPM}, 1, 1};
-struct firemode_t firemode_two = { {SET_RPM, SET_RPM}, 3, 1};
-struct firemode_t firemode_three = { {SET_RPM, SET_RPM}, 100, 0}; 
-struct firemode_t* firemode_curr = &firemode_one; // pointer to current fire mode
+uint8_t shotsFired = 0; // helper variable so we know how far into a burst we are
 
 // blaster state variables
 wheelState_t wheelState; // this gets set in the init function so that the timestamp is in sync
@@ -90,6 +50,10 @@ uint16_t throttleCache[rpmLogLength][NUM_MOTORS] = {0}; // float gets converted 
 uint16_t cacheIndex = rpmLogLength + 1;
 #endif
 
+// fire mode storage
+struct firemode_t firemode_one;
+struct firemode_t firemode_two;
+struct firemode_t firemode_three;
 
 void init() {
   // initialize generic io and usb
@@ -128,23 +92,24 @@ void init() {
   // set initial value for wheel state
   updateWheelState(IDLE);
 
-   // update fire mode from selector
-   sel1.update();
-   sel2.update();
+  // update fire mode from selector
+  sel1.update();
+  sel2.update();
 
-   if (sel1.isPressed()) { // forward position
-    SET_RPM = VariableFPS[0];
+  uint32_t setRPM;
+  if (sel1.isPressed()) { // forward position
+    setRPM = variableFPS[0];
   }
   else if (sel2.isPressed()) { // backward position
-    SET_RPM = VariableFPS[2];
+    setRPM = variableFPS[2];
   }
   else { // middle position
-    SET_RPM = VariableFPS[1];
+    setRPM = variableFPS[1];
   }
 
-  firemode_one = { {SET_RPM, SET_RPM}, burstSize[0], burstMode[0]};
-  firemode_two = { {SET_RPM, SET_RPM}, burstSize[1], burstMode[1]};
-  firemode_three = { {SET_RPM, SET_RPM}, burstSize[2], burstMode[2]};
+  firemode_one = { {setRPM, setRPM}, burstSize[0], burstMode[0] };
+  firemode_two = { {setRPM, setRPM}, burstSize[1], burstMode[1] };
+  firemode_three = { {setRPM, setRPM}, burstSize[2], burstMode[2] };
 
 
 }
@@ -383,15 +348,4 @@ bool pusherSafetyCallback(repeating_timer_t *rt) {
   }
   psTimeout = NONE; // signal that the timeout has fired
   return false; // do not repeat
-}
-
-// because printf() over usb blocks if a serial connection isnt active apparently
-void uprintf(const char* format, ...) {
-  if (!stdio_usb_connected()) {
-      return;  // don't do anything if usb isn't connected
-  }
-  va_list args;
-  va_start(args, format);
-  vprintf(format, args);
-  va_end(args);
 }
