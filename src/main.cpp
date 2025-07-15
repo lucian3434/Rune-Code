@@ -8,6 +8,8 @@
 #include "pid.h"
 #include "states.h"
 
+#include "components/scotch_yoke_pusher.h"
+
 
 
 void init();

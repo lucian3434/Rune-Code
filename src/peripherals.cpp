@@ -7,7 +7,7 @@ Motor::BIDSHOTMotor motors[NUM_MOTORS] {
 };
 
 // configuring IO on the blaster
-Debounce::Button rev = Debounce::Button(IO3, true, true);
+Debounce::Button rev = Debounce::Button(IO3, true, true); // not currently in use
 // below IO is referenced by name by the fire control logic
 Debounce::Button cycle = Debounce::Button(IO1, true, true);
 Debounce::Button trig = Debounce::Button(IO2, true, true);

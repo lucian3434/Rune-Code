@@ -1,5 +1,5 @@
 #pragma once
-#include <stdint.h>
+#include "pico/stdlib.h"
 
 enum wheelState_t {
     IDLE,
@@ -18,3 +18,7 @@ enum pusherSafetyTimeout_t {
     WAITING,
     NONE
 };
+
+extern wheelState_t wheelState;
+extern pusherState_t pusherState;
+extern absolute_time_t lastWheelStateUpdate;
