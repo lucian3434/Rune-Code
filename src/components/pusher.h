@@ -25,12 +25,13 @@ bool pusherSafetyCallback(repeating_timer_t *rt);
 namespace Rune {
     // Prototype class for a pusher module. Not for direct use.
     class PusherGeneric {
-        private:
-            wheelUpdateCallback_t updatewheelState;
-            firemode_t *firemode;
+        protected:
+            wheelUpdateCallback_t updateWheelState;
+            firemode_t **firemode;
             uint16_t shotsFired;
         public:
-            PusherGeneric(wheelUpdateCallback_t callback, firemode_t *firemode_curr);
+            PusherGeneric();
+            PusherGeneric(wheelUpdateCallback_t callback, firemode_t **firemode_curr);
             bool init();
             void triggerRisingEdge();
             void triggerFallingEdge();

@@ -16,17 +16,17 @@ void init();
 bool systemControlLoop(repeating_timer_t *rt);
 bool motorControlLoop(repeating_timer_t *rt);
 void updateWheelState(wheelState_t newState);
-bool pusherSafetyCallback(repeating_timer_t *rt);
-
-repeating_timer_t pusherSafetyCallbackTimer;
-pusherSafetyTimeout_t psTimeout = NONE;
 
 uint8_t shotsFired = 0; // helper variable so we know how far into a burst we are
 
 // blaster state variables
 wheelState_t wheelState; // this gets set in the init function so that the timestamp is in sync
-pusherState_t pusherState = STOPPED;
 absolute_time_t lastWheelStateUpdate;
+
+
+#ifdef PUSHER_SCOTCH_YOKE
+Rune::PusherScotchYoke pusher = Rune::PusherScotchYoke(&updateWheelState, &firemode_curr, &drv, &cycle);
+#endif
 
 // helper variables for PID control
 // these pid values work for the most part. not the greatest, but better than nothing lol
@@ -121,7 +121,7 @@ int main() {
   init();
   uint8_t bootStatus = 0;
   
-  // the drv8243 WILL wake up
+  // the drv8244 WILL wake up
   uprintf("Waking DRV...\r\n");
   while (!drv.wake()) {
     uprintf("Failed to wake DRV. Retrying...\r\n");
@@ -254,7 +254,7 @@ void updateWheelState(wheelState_t newState) {
   }
   else if (newState == STEADY) {
     uprintf("INFO: trigger delay: %ums\r\n", to_ms_since_boot(get_absolute_time()) - to_ms_since_boot(lastWheelStateUpdate));
-    pusherState = RUNNING; // start the pusher once we are at steady state
+    pusher.updatePusherState(Rune::PusherScotchYoke::pusherState_t::RUNNING); // start the pusher once we are at steady state
   }
   else if (newState == SLOWING) {
     // save the last throttle values so we know where to slow down from
@@ -295,59 +295,20 @@ bool systemControlLoop(repeating_timer_t *rt) {
     cacheIndex = 0; // reset cache index to start logging
     #endif
 
-    // cancel the pusher safety timer now that we've pressed the trigger
-    if (psTimeout == WAITING) {
-      cancel_repeating_timer(&pusherSafetyCallbackTimer);
-      psTimeout = NONE;
-    }
+    pusher.triggerRisingEdge();
 
     // start firing
     if ((firemode_curr->numShots > 0 && wheelState != ACCELERATING)) {
       updateWheelState(ACCELERATING);
-      shotsFired = 0;
     }
   }
 
   // when the trigger is released, start the pusher safety timeout
   if (trig.isFallingEdge()) {
-    add_repeating_timer_ms(-200, pusherSafetyCallback, NULL, &pusherSafetyCallbackTimer);
-    psTimeout = WAITING;
+    pusher.triggerFallingEdge();
   }
 
-  // if the pusher is running, check to see if it hit the cycle switch before continuing
-  if (pusherState == RUNNING) {
-    if (cycle.isRisingEdge()) {
-      #ifndef USE_RPM_LOGGING
-      uprintf("INFO: Cycle switch pressed\r\n");
-      #endif
-      shotsFired++;
-      if ((shotsFired >= firemode_curr->numShots) || ((!trig.isPressed()) && (firemode_curr->burstMode == 0))) {
-        // stop the pusher if we've finished the burst or let go of the trigger
-        pusherState = STOPPED;
-        updateWheelState(SLOWING); // and tell the wheels to slow down too
-      }
-    }
-    else {
-      drv.drive();
-    }
-  }
-  // brake if the pusher isn't supposed to be moving anymore
-  if (pusherState == STOPPED) {
-    drv.brake();
-  }
+  pusher.pusherTick();
 
   return true; // repeat timer
-}
-
-// check to make sure the pusher isnt stuck on for too long after the trigger is released (dead switch/cannot travel/etc)
-bool pusherSafetyCallback(repeating_timer_t *rt) {
-  // check if the pusher is still running
-  if (pusherState == RUNNING) {
-    pusherState = STOPPED;
-    updateWheelState(SLOWING);
-    // give a warning so anything listening to serial knows whats happening
-    uprintf("WARNING: Pusher safety timeout triggered. Check your pusher and cycle switch.\r\n");
-  }
-  psTimeout = NONE; // signal that the timeout has fired
-  return false; // do not repeat
 }

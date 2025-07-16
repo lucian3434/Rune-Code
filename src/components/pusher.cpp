@@ -1,9 +1,15 @@
 #include "pusher.h"
 #include "./../util.h"
 
+Rune::PusherGeneric::PusherGeneric() {
+  updateWheelState = nullptr;
+  firemode = nullptr;
+  shotsFired = 0;
+}
+
 // instantiate a pusher object
-Rune::PusherGeneric::PusherGeneric(wheelUpdateCallback_t callback, firemode_t *firemode_curr) {
-  updatewheelState = callback;
+Rune::PusherGeneric::PusherGeneric(wheelUpdateCallback_t callback, firemode_t **firemode_curr) {
+  updateWheelState = callback;
   firemode = firemode_curr;
   shotsFired = 0;
 }
@@ -21,6 +27,7 @@ void Rune::PusherGeneric::triggerRisingEdge() {
 void Rune::PusherGeneric::triggerFallingEdge() {
 }
 
+// called every tick of the system control loop
 void Rune::PusherGeneric::pusherTick() {
 }
 

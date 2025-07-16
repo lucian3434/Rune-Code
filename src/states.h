@@ -7,7 +7,7 @@ enum wheelState_t {
     STEADY,
     SLOWING
 };
-
+/*
 enum pusherState_t {
     RUNNING,
     STOPPED
@@ -18,7 +18,4 @@ enum pusherSafetyTimeout_t {
     WAITING,
     NONE
 };
-
-extern wheelState_t wheelState;
-extern pusherState_t pusherState;
-extern absolute_time_t lastWheelStateUpdate;
+*/
