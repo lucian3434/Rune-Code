@@ -84,7 +84,7 @@ void init() {
   // initialize and turn on ESC power switch
   gpio_init(ESC_ENABLE);
   gpio_set_dir(ESC_ENABLE, GPIO_OUT);
-  gpio_put(ESC_ENABLE, false);
+  gpio_put(ESC_ENABLE, true);
   
   for (uint8_t i = 0; i <NUM_MOTORS; i++){
     motors[i].setThrottle(0.0);
