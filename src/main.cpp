@@ -11,7 +11,6 @@
 #include "components/scotch_yoke_pusher.h"
 
 
-
 void init();
 bool systemControlLoop(repeating_timer_t *rt);
 bool motorControlLoop(repeating_timer_t *rt);
@@ -25,7 +24,7 @@ absolute_time_t lastWheelStateUpdate;
 
 
 #ifdef PUSHER_SCOTCH_YOKE
-Rune::PusherScotchYoke pusher = Rune::PusherScotchYoke(&updateWheelState, &firemode_curr, &drv, &cycle);
+Rune::PusherScotchYoke pusher = Rune::PusherScotchYoke(&updateWheelState, &firemode_curr, &drv, &cycle, &trig);
 #endif
 
 // helper variables for PID control
@@ -85,7 +84,7 @@ void init() {
   // initialize and turn on ESC power switch
   gpio_init(ESC_ENABLE);
   gpio_set_dir(ESC_ENABLE, GPIO_OUT);
-  gpio_put(ESC_ENABLE, true);
+  gpio_put(ESC_ENABLE, false);
   
   for (uint8_t i = 0; i <NUM_MOTORS; i++){
     motors[i].setThrottle(0.0);
@@ -254,7 +253,7 @@ void updateWheelState(wheelState_t newState) {
   }
   else if (newState == STEADY) {
     uprintf("INFO: trigger delay: %ums\r\n", to_ms_since_boot(get_absolute_time()) - to_ms_since_boot(lastWheelStateUpdate));
-    pusher.updatePusherState(Rune::PusherScotchYoke::pusherState_t::RUNNING); // start the pusher once we are at steady state
+    pusher.updatePusherState(Rune::PusherGeneric::pusherState_t::RUNNING); // start the pusher once we are at steady state
   }
   else if (newState == SLOWING) {
     // save the last throttle values so we know where to slow down from
