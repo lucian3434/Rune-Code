@@ -1,18 +1,17 @@
 # Rune Firmware
 Reference firmware for the Rune brushless blaster control board. Currently under development, this repository will likely change a good bit in the near future
 
+NOTE: Don't expect massive code changes until after I graduate in December, but new batch of hardware is hopefully coming soon (though we've been saying this for months 😭)
+
 ## TODO
-- [x] Noise rejection in the PID loop so that a D term is actually helpful (or otherwise I re-evaluate my PID tuning ability) **update: i need to re-evaluate my pid tuning ability**
+- [x] Noise rejection in the PID loop so that a D term is actually helpful (need to take a second look at this)
 - [ ] \(BIDSHOT code) Support for extended telemetry packets
-- [ ] Better error checking when using telemetry data
-- [ ] Make a better attempt to get everything set up before saying boot was successful (and add a safety flag so that most code doesn't run until after boot is complete)
+- [ ] Better error checking when using telemetry data (urgently needed)
+- [ ] Make a better attempt to get everything set up before saying boot was successful (tbd if necessary, usually you can just reboot and it'll work if theres an issue)
 - [x] FPS select on boot 
-- [ ] Flash read/write for configuration
-- [ ] Refactor main.cpp to make it easier to understand
-- [ ] Provisions for a solenoid pusher (brushed pusher with cycle switch only atm)
-- [ ] More detail in the readme
-- [x] Decide what license fits best
-- [ ] Figure out what else needs to be added
+- [ ] Flash read/write for configuration (probably far future, most people will be reflashing code anyway)
+- [ ] Refactor main.cpp to make it easier to understand (maybe wip?)
+- [ ] Provisions for a solenoid pusher (check dpyo's branch)
 
 
 ## Features
